@@ -1,0 +1,310 @@
+---
+title: "Boruta trial"
+author: "Thomas Van Hoey"
+date: "2024-02-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Boruta)
+library(nycflights13)
+library(ranger)
+library(vip)
+library(beepr)
+library(here)
+```
+Should start at Boruta testing
+```{r}
+here()
+```
+
+
+# Helpful documentation
+
+* Intro from LADAL: https://ladal.edu.au/tree.html#3_Boruta 
+* Package site: https://gitlab.com/mbq/Boruta/
+* Vignette: https://cran.r-project.org/web/packages/Boruta/vignettes/inahurry.pdf 
+* Paper: https://www.jstatsoft.org/article/view/v036i11 
+
+
+
+# Iris
+
+```{r}
+set.seed(17)
+
+irisE <-
+  cbind(setNames(data.frame(apply(iris[,-5], 2, sample)),
+                 sprintf("Nonsense%d", 1:4)
+                 ),
+        iris)
+
+
+boruta_on_irisE <-
+  Boruta(Species ~ ., data = irisE)
+
+boruta_on_irisE
+```
+
+```{r}
+attStats(boruta_on_irisE)
+```
+
+```{r}
+Boruta::plotImpHistory(boruta_on_irisE)
+```
+
+
+
+
+```{r}
+boruta_on_irisE %>% plot()
+```
+
+
+
+
+# Flights
+
+Case study comes from https://www.tidymodels.org/start/recipes/ 
+
+
+```{r}
+
+flight_data <- 
+  flights %>% 
+  mutate(
+    # Convert the arrival delay to a factor
+    arr_delay = ifelse(arr_delay >= 30, "late", "on_time"),
+    arr_delay = factor(arr_delay),
+    # We will use the date (not date-time) in the recipe below
+    date = lubridate::as_date(time_hour)
+  ) %>% 
+  # Include the weather data
+  inner_join(weather, by = c("origin", "time_hour")) %>% 
+  # Only retain the specific columns we will use
+  select(dep_time, flight, origin, dest, air_time, distance, 
+         carrier, date, arr_delay, time_hour) %>% 
+  # Exclude missing data
+  na.omit() %>% 
+  # For creating models, it is better to have qualitative columns
+  # encoded as factors (instead of character strings)
+  mutate_if(is.character, as.factor) %>% 
+  
+  mutate(weekday = factor(weekdays(date),
+                          levels = c("Monday", "Tuesday", "Wednesday",
+                                     "Thursday", "Friday",
+                                     "Saturday", "Sunday")))
+```
+
+```{r}
+str(flight_data)
+```
+
+
+Let's say we want to predict whether there is a delay
+
+arr_delay ~ dep_time + origin + dest + air_time + distance + carrier + date + weekday
+
+## Random forest (ranger)
+
+```{r}
+rf1 <-
+  ranger(arr_delay ~ dep_time + origin + dest + air_time + distance + carrier + date + weekday,
+         data = flight_data,
+         importance = "impurity_corrected") # don't forget to put this
+
+
+beep()
+
+rf1
+```
+
+
+```{r}
+vip(rf1)
+```
+
+```{r}
+rf1_predictions <-
+  predict(rf1, data = flight_data)
+```
+
+For prediction better without variable importance, so we run again without that variable
+
+```{r}
+rf2 <-
+    ranger(arr_delay ~ dep_time + origin + dest + air_time + distance + carrier + date + weekday,
+         data = flight_data)
+```
+
+
+```{r}
+rf2_predictions <-
+  predict(rf2, data = flight_data)
+
+rf2_predictions$predictions
+```
+
+```{r}
+rf1_pred_df <-
+  bind_cols(flight_data, .pred = rf2_predictions$predictions)
+
+Hmisc::somers2(as.numeric(rf1_pred_df$.pred) - 1, as.numeric(rf1_pred_df$arr_delay) - 1) %>% 
+  enframe() %>% 
+  mutate(value = round(value, 2))
+```
+
+
+
+
+
+## Boruta
+
+The following will take a long time to run (like it was more 35 minutes I think),
+so best to load in the object I saved it in.
+
+
+```{r}
+#### DONT' RUN BUT LOAD THE RDS ####
+
+# boruta2 <-
+#   Boruta(arr_delay ~ dep_time + origin + dest + air_time + distance + carrier + date + weekday,
+#          data = flight_data)
+# 
+# 
+# write_rds(boruta2,
+#           file = "/Users/Thomas/Desktop/boruta2_model.rds")
+
+boruta2_model <-
+  read_rds("/Users/Thomas/Desktop/boruta2_model.rds")
+```
+
+The message the the Boruta algorithm spit out
+
+``` 
+Growing trees.. Progress: 37%. Estimated remaining time: 51 seconds.
+Growing trees.. Progress: 79%. Estimated remaining time: 16 seconds.
+Computing permutation importance.. Progress: 31%. Estimated remaining time: 1 minute, 8 seconds.
+Computing permutation importance.. Progress: 62%. Estimated remaining time: 38 seconds.
+Computing permutation importance.. Progress: 95%. Estimated remaining time: 4 seconds.
+Growing trees.. Progress: 38%. Estimated remaining time: 50 seconds.
+Growing trees.. Progress: 78%. Estimated remaining time: 17 seconds.
+Computing permutation importance.. Progress: 29%. Estimated remaining time: 1 minute, 14 seconds.
+Computing permutation importance.. Progress: 56%. Estimated remaining time: 47 seconds.
+Computing permutation importance.. Progress: 87%. Estimated remaining time: 13 seconds.
+Growing trees.. Progress: 32%. Estimated remaining time: 1 minute, 5 seconds.
+Growing trees.. Progress: 65%. Estimated remaining time: 34 seconds.
+Growing trees.. Progress: 97%. Estimated remaining time: 3 seconds.
+Computing permutation importance.. Progress: 24%. Estimated remaining time: 1 minute, 36 seconds.
+Computing permutation importance.. Progress: 50%. Estimated remaining time: 1 minute, 2 seconds.
+Computing permutation importance.. Progress: 74%. Estimated remaining time: 33 seconds.
+Computing permutation importance.. Progress: 95%. Estimated remaining time: 6 seconds.
+Growing trees.. Progress: 31%. Estimated remaining time: 1 minute, 7 seconds.
+Growing trees.. Progress: 66%. Estimated remaining time: 32 seconds.
+Growing trees.. Progress: 98%. Estimated remaining time: 2 seconds.
+Computing permutation importance.. Progress: 28%. Estimated remaining time: 1 minute, 21 seconds.
+Computing permutation importance.. Progress: 50%. Estimated remaining time: 1 minute, 1 seconds.
+Computing permutation importance.. Progress: 74%. Estimated remaining time: 31 seconds.
+Computing permutation importance.. Progress: 96%. Estimated remaining time: 5 seconds.
+Growing trees.. Progress: 36%. Estimated remaining time: 55 seconds.
+Growing trees.. Progress: 69%. Estimated remaining time: 27 seconds.
+Computing permutation importance.. Progress: 28%. Estimated remaining time: 1 minute, 21 seconds.
+Computing permutation importance.. Progress: 54%. Estimated remaining time: 51 seconds.
+Computing permutation importance.. Progress: 82%. Estimated remaining time: 20 seconds.
+Growing trees.. Progress: 36%. Estimated remaining time: 56 seconds.
+Growing trees.. Progress: 69%. Estimated remaining time: 27 seconds.
+Computing permutation importance.. Progress: 24%. Estimated remaining time: 1 minute, 37 seconds.
+Computing permutation importance.. Progress: 49%. Estimated remaining time: 1 minute, 5 seconds.
+Computing permutation importance.. Progress: 74%. Estimated remaining time: 31 seconds.
+Growing trees.. Progress: 36%. Estimated remaining time: 56 seconds.
+Growing trees.. Progress: 73%. Estimated remaining time: 23 seconds.
+Computing permutation importance.. Progress: 30%. Estimated remaining time: 1 minute, 11 seconds.
+Computing permutation importance.. Progress: 58%. Estimated remaining time: 44 seconds.
+Computing permutation importance.. Progress: 89%. Estimated remaining time: 11 seconds.
+Growing trees.. Progress: 34%. Estimated remaining time: 1 minute, 0 seconds.
+Growing trees.. Progress: 73%. Estimated remaining time: 22 seconds.
+Computing permutation importance.. Progress: 30%. Estimated remaining time: 1 minute, 13 seconds.
+Computing permutation importance.. Progress: 60%. Estimated remaining time: 40 seconds.
+Computing permutation importance.. Progress: 89%. Estimated remaining time: 11 seconds.
+Growing trees.. Progress: 39%. Estimated remaining time: 48 seconds.
+Growing trees.. Progress: 79%. Estimated remaining time: 16 seconds.
+Computing permutation importance.. Progress: 27%. Estimated remaining time: 1 minute, 24 seconds.
+Computing permutation importance.. Progress: 56%. Estimated remaining time: 48 seconds.
+Computing permutation importance.. Progress: 81%. Estimated remaining time: 21 seconds.
+Growing trees.. Progress: 35%. Estimated remaining time: 57 seconds.
+Growing trees.. Progress: 71%. Estimated remaining time: 25 seconds.
+Computing permutation importance.. Progress: 25%. Estimated remaining time: 1 minute, 31 seconds.
+Computing permutation importance.. Progress: 47%. Estimated remaining time: 1 minute, 9 seconds.
+Computing permutation importance.. Progress: 75%. Estimated remaining time: 31 seconds.
+Computing permutation importance.. Progress: 98%. Estimated remaining time: 2 seconds.
+```
+
+
+```{r}
+print(boruta2_model)
+```
+
+```{r}
+boruta2_model$finalDecision
+```
+
+```{r}
+# extract decision
+getConfirmedFormula(boruta2_model)
+```
+
+
+```{r}
+plotImpHistory(boruta2_model)
+```
+
+Based on this, we don't throw it out.
+
+```{r}
+boruta2_model %>% plot()
+```
+
+```{r}
+borutacategory <-
+  attStats(boruta2_model) %>% 
+  rownames_to_column(var = "variable")
+
+borutacategory
+```
+
+
+
+
+
+```{r}
+boruta2_model$ImpHistory %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(borutacategory %>% select(variable, decision),
+            by = join_by(variable)) %>% 
+
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, - value), value, fill = decision)) # color can be changed
+```
+
+
+
+```{r}
+boruta2_model %>% summary()
+```
+
+# Genitive case study
+
+
+
+
