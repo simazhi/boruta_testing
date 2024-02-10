@@ -1,0 +1,538 @@
+---
+title: "Genitives and Datives"
+author: "Thomas Van Hoey"
+date: "2024-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(Boruta)
+library(Hmisc)
+library(janitor)
+library(beepr)
+
+set.seed(1234)
+```
+
+
+This is still a test run for the Boruta package.
+
+We're going to remake a study about genitives and datives.
+
+Szmrecsanyi, Benedikt, Jason Grafmiller, Joan Bresnan, Anette Rosenbach, Sali Tagliamonte & Simon Todd. 2017. Spoken syntax in a comparative perspective: The dative and genitive alternation in varieties of English. Glossa: a journal of general linguistics 2(1). 86. https://doi.org/10.5334/gjgl.310.
+
+With the Boruta package, we can have a better grip on variable importance.
+
+We follow the same predictors etc. as in that paper:
+
+> We conducted an independent CRF run for each of the varieties, per alternation
+
+Note:
+
+> permutation variable importance [rather than impurity or impurity_corrected]
+
+
+# Genitive
+
+```{r}
+gen_orig <-
+  read_csv(here("genitives-finalized.csv")) %>% 
+  clean_names() %>% 
+  mutate(across(c(response_variable, possessor_animacy, possessor_definiteness,
+                  possessor_length, possessum_length, semantic_relation,final_sibilancy),
+                ~ factor(.x)))
+```
+
+```{r}
+skimr::skim(gen_orig)
+```
+
+Because `persistence` is missing from a number of cases, we don't include it. 
+It's also not reported in the paper, even though it's one of the predictors.
+
+
+Four subsets
+```{r}
+gen_can <- filter(gen_orig, variety == "CAN")
+gen_nz <- filter(gen_orig, variety == "NZ")
+gen_uk <- filter(gen_orig, variety == "UK")
+gen_us <- filter(gen_orig, variety == "US")
+```
+
+
+Genitive formula
+``` 
+response_variable ~ possessor_animacy + possessor_definiteness + possessor_length + possessum_length + semantic_relation + final_sibilancy
+```
+
+## Gen Boruta Canada
+
+```{r}
+boruta_gen_can <-
+  Boruta(response_variable ~ possessor_animacy + possessor_definiteness + possessor_length +
+           possessum_length + semantic_relation + final_sibilancy,
+         data = gen_can)
+```
+
+```{r}
+boruta_gen_can
+
+attStats(boruta_gen_can)
+
+plotImpHistory(boruta_gen_can)
+
+boruta_gen_can %>% plot()
+
+boruta_gen_can$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_gen_can_decision <-
+  attStats(boruta_gen_can) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+
+```{r}
+boruta_gen_can$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_gen_can_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+## Gen Boruta US
+
+```{r}
+boruta_gen_us <-
+  Boruta(response_variable ~ possessor_animacy + possessor_definiteness + possessor_length +
+           possessum_length + semantic_relation + final_sibilancy,
+         data = gen_us)
+```
+
+```{r}
+boruta_gen_us
+
+attStats(boruta_gen_us)
+
+plotImpHistory(boruta_gen_us)
+
+boruta_gen_us %>% plot()
+
+boruta_gen_us$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_gen_us_decision <-
+  attStats(boruta_gen_us) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+```{r}
+boruta_gen_us$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_gen_us_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+## Gen Boruta NZ
+
+```{r}
+boruta_gen_nz <-
+  Boruta(response_variable ~ possessor_animacy + possessor_definiteness + possessor_length +
+           possessum_length + semantic_relation + final_sibilancy,
+         data = gen_nz)
+```
+
+```{r}
+boruta_gen_nz
+
+attStats(boruta_gen_nz)
+
+plotImpHistory(boruta_gen_nz)
+
+boruta_gen_nz %>% plot()
+
+boruta_gen_nz$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_gen_nz_decision <-
+  attStats(boruta_gen_nz) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+```{r}
+boruta_gen_nz$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_gen_nz_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+**Possessum_length deemed unimportant!!!**
+
+
+## Gen Boruta UK
+
+```{r}
+boruta_gen_uk <-
+  Boruta(response_variable ~ possessor_animacy + possessor_definiteness + possessor_length +
+           possessum_length + semantic_relation + final_sibilancy,
+         data = gen_uk)
+```
+
+```{r}
+boruta_gen_uk
+
+attStats(boruta_gen_uk)
+
+plotImpHistory(boruta_gen_uk)
+
+boruta_gen_uk %>% plot()
+
+boruta_gen_uk$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_gen_uk_decision <-
+  attStats(boruta_gen_uk) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+```{r}
+boruta_gen_uk$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_gen_uk_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+# Dative
+
+
+```{r}
+dat_orig <-
+  read_csv(here("datives-finalized.csv")) %>% 
+  clean_names() %>% 
+  mutate(across(c(response_variable, 
+                  recipient_type, recipient_animacy, recipient_definiteness,
+                  theme_type, theme_animacy, theme_definiteness,
+                  semantics),
+                ~ factor(.x))) %>% 
+  mutate(l_diff = log(recipient_length) - log(theme_length))
+```
+
+```{r}
+skimr::skim(dat_orig)
+```
+
+
+Four subsets
+```{r}
+dat_can <- filter(dat_orig, variety == "CAN")
+dat_nz <- filter(dat_orig, variety == "NZ")
+dat_uk <- filter(dat_orig, variety == "UK")
+dat_us <- filter(dat_orig, variety == "US")
+```
+
+
+datitive formula
+``` 
+response_variable ~ 
+  recipient_type + recipient_animacy + recipient_definiteness +
+  theme_type + theme_animacy +  theme_definiteness +
+  l_diff + semantics
+```
+
+## dat Boruta Canada
+
+```{r}
+boruta_dat_can <-
+  Boruta(response_variable ~ recipient_type + recipient_animacy +
+           recipient_definiteness + theme_type + theme_animacy +
+           theme_definiteness + l_diff + semantics,
+         data = dat_can)
+```
+
+```{r}
+boruta_dat_can
+
+attStats(boruta_dat_can)
+
+plotImpHistory(boruta_dat_can)
+
+boruta_dat_can %>% plot()
+
+boruta_dat_can$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_dat_can_decision <-
+  attStats(boruta_dat_can) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+
+```{r}
+boruta_dat_can$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_dat_can_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+## dat Boruta US
+
+```{r}
+boruta_dat_us <-
+  Boruta(response_variable ~ recipient_type + recipient_animacy +
+           recipient_definiteness + theme_type + theme_animacy +
+           theme_definiteness + l_diff + semantics,
+         data = dat_us)
+```
+
+```{r}
+boruta_dat_us
+
+attStats(boruta_dat_us)
+
+plotImpHistory(boruta_dat_us)
+
+boruta_dat_us %>% plot()
+
+boruta_dat_us$finalDecision %>% as.data.frame()
+```
+
+```{r}
+boruta_dat_us_decision <-
+  attStats(boruta_dat_us) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+```{r}
+boruta_dat_us$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_dat_us_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+## dat Boruta NZ
+
+```{r}
+boruta_dat_nz <-
+  Boruta(response_variable ~ recipient_type + recipient_animacy +
+           recipient_definiteness + theme_type + theme_animacy +
+           theme_definiteness + l_diff + semantics,
+         data = dat_nz)
+```
+
+```{r}
+boruta_dat_nz
+
+attStats(boruta_dat_nz)
+
+plotImpHistory(boruta_dat_nz)
+
+boruta_dat_nz %>% plot()
+
+boruta_dat_nz$finalDecision %>% as.data.frame()
+```
+
+
+```{r}
+boruta_dat_nz_decision <-
+  attStats(boruta_dat_nz) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+
+```{r}
+boruta_dat_nz$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_dat_nz_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+**Theme animacy deemed unimportant**
+
+
+## dat Boruta UK
+
+```{r}
+boruta_dat_uk <-
+  Boruta(response_variable ~ recipient_type + recipient_animacy +
+           recipient_definiteness + theme_type + theme_animacy +
+           theme_definiteness + l_diff + semantics,
+         data = dat_uk)
+```
+
+```{r}
+boruta_dat_uk
+
+attStats(boruta_dat_uk)
+
+plotImpHistory(boruta_dat_uk)
+
+boruta_dat_uk %>% plot()
+
+boruta_dat_uk$finalDecision %>% as.data.frame()
+```
+
+
+```{r}
+boruta_dat_uk_decision <-
+  attStats(boruta_dat_uk) %>% 
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
+```
+
+```{r}
+boruta_dat_uk$ImpHistory %>% 
+  as.data.frame() %>%
+  rownames_to_column(var = "iteration") %>% 
+  select(-starts_with("shadow")) %>% 
+  pivot_longer(-iteration,
+               names_to = "variable",
+               values_to = "value") %>% 
+  left_join(boruta_dat_uk_decision,
+            by = join_by(variable)) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(variable, value), 
+                   value,
+                   fill = decision)) + # color can be changed
+  coord_flip()
+```
+
+
+**Theme animacy and Recipient animacy rejected as useful**
+
+
+
+
+
+```{r}
+beep()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

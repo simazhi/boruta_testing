@@ -18,7 +18,7 @@ library(vip)
 library(beepr)
 library(here)
 ```
-Should start at Boruta testing
+Should start at Boruta testing (the R project)
 ```{r}
 here()
 ```
@@ -59,13 +59,9 @@ attStats(boruta_on_irisE)
 Boruta::plotImpHistory(boruta_on_irisE)
 ```
 
-
-
-
 ```{r}
 boruta_on_irisE %>% plot()
 ```
-
 
 
 
@@ -148,7 +144,7 @@ rf2 <-
 rf2_predictions <-
   predict(rf2, data = flight_data)
 
-rf2_predictions$predictions
+# rf2_predictions$predictions
 ```
 
 ```{r}
@@ -159,9 +155,6 @@ Hmisc::somers2(as.numeric(rf1_pred_df$.pred) - 1, as.numeric(rf1_pred_df$arr_del
   enframe() %>% 
   mutate(value = round(value, 2))
 ```
-
-
-
 
 
 ## Boruta
@@ -177,12 +170,14 @@ so best to load in the object I saved it in.
 #   Boruta(arr_delay ~ dep_time + origin + dest + air_time + distance + carrier + date + weekday,
 #          data = flight_data)
 # 
+# beep()
+# 
 # 
 # write_rds(boruta2,
 #           file = "/Users/Thomas/Desktop/boruta2_model.rds")
 
 boruta2_model <-
-  read_rds("/Users/Thomas/Desktop/boruta2_model.rds")
+  read_rds(here("boruta2_model.rds"))
 ```
 
 The message the the Boruta algorithm spit out
@@ -273,13 +268,11 @@ boruta2_model %>% plot()
 ```{r}
 borutacategory <-
   attStats(boruta2_model) %>% 
-  rownames_to_column(var = "variable")
+  rownames_to_column(var = "variable") %>% 
+  select(variable, decision)
 
 borutacategory
 ```
-
-
-
 
 
 ```{r}
@@ -302,9 +295,5 @@ boruta2_model$ImpHistory %>%
 ```{r}
 boruta2_model %>% summary()
 ```
-
-# Genitive case study
-
-
 
 
